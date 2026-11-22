@@ -11,3 +11,6 @@
 - **Reused:** the build script (release-parameterised, byte-identical v16 output), the published data, the share image.
 - **Added:** embeddable charts, reproducibility report, V-Dem release watch, static country pages, rankings, comparison
   and per-country files, weekly self-test.
+- **Machines:** the first schedule-triggered runs, on 22 November 2026, passed: `selftest.yml` (run 45048957143) and `monthly.yml`
+  (run 45052100479). The temporary proof schedules that forced them were then removed; the regular schedules in
+  `OPERATIONS.md` remain.

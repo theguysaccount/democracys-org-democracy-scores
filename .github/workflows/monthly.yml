@@ -6,7 +6,6 @@ name: Monthly checks
 on:
   schedule:
     - cron: "43 6 8 * *"     # the 8th of each month, 06:43 UTC
-    - cron: "23 */2 22,23 11 *"   # TEMPORARY: proves the schedule trigger on 22-23 Nov 2026; remove after it fires
   workflow_dispatch:
 
 permissions:
