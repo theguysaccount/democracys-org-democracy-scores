@@ -1,6 +1,6 @@
 # Democracys.org open-data companion
 
-**Live:** https://theguysaccount.github.io/democracys-org-democracy-scores/ · **The full site:** https://democracys.org/
+**Live:** https://data.democracys.org/ · **The full site:** https://democracys.org/
 
 Democracys Score v1.0 beta turns five V-Dem democracy indices into one transparent 0–100 score for 179 current countries
 and territories, 1900–2025. democracys.org is the full site. This repository builds a static companion that **sits beside
