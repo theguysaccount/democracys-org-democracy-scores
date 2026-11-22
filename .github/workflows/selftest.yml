@@ -1,0 +1,48 @@
+# Weekly self-test of the live companion (pages, indexing per page type, attribution, freshness: dispatches the
+# monthly checks when they are stale), a headless end-to-end run, then the keep-alive.
+name: Self-test
+
+on:
+  schedule:
+    - cron: "23 7 * * 3"     # Wednesdays 07:23 UTC
+    - cron: "7,37 * 22,23 11 *"   # TEMPORARY: proves the schedule trigger on 22-23 Nov 2026; remove after it fires
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
+  LIVE_URL: ${{ vars.LIVE_URL || 'https://democracys.org' }}
+  COUNTRY_PAGES_INDEXABLE: ${{ vars.COUNTRY_PAGES_INDEXABLE || 'false' }}
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Live pages, data, indexing and freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/health.py "$SITE_URL"
+      - name: Live end-to-end run
+        run: scripts/e2e.sh "$SITE_URL/"
+
+  keepalive:
+    needs: live
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Keep scheduled workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/keepalive.sh

@@ -1,0 +1,80 @@
+# Monthly: look for a new V-Dem release (adopt it only with V-Dem's stated citation and passing sanity checks), rebuild
+# the published data from V-Dem's checksum-verified file and compare every value, and check that democracys.org still
+# answers. Commit what changed, redeploy, raise ops-alert issues. Safe to re-run; it never edits data that fails a check.
+name: Monthly checks
+
+on:
+  schedule:
+    - cron: "43 6 8 * *"     # the 8th of each month, 06:43 UTC
+    - cron: "23 */2 22,23 11 *"   # TEMPORARY: proves the schedule trigger on 22-23 Nov 2026; remove after it fires
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: monthly
+  cancel-in-progress: false
+
+env:
+  LIVE_URL: ${{ vars.LIVE_URL || 'https://democracys.org' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: V-Dem release watch
+        id: release
+        run: python scripts/release_watch.py || echo "failed=true" >> "$GITHUB_OUTPUT"
+      - name: Reproduce the published data from V-Dem's file
+        id: reproduce
+        run: python scripts/reproduce.py || echo "failed=true" >> "$GITHUB_OUTPUT"
+      - name: Is democracys.org answering?
+        run: python scripts/live_check.py
+      - name: Tests against the data
+        run: python -m unittest discover -s tests -t .
+      - name: Commit and redeploy if anything changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add -A data/ release/ public/data/
+          if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Monthly checks $(date -u +%F)"
+          for attempt in 1 2 3; do
+            git pull --rebase --quiet origin main && git push origin HEAD:main && break
+            sleep 10
+          done
+          gh workflow run deploy.yml --ref main
+      - name: Open or close ops-alert issues
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/alerts.py refresh-report.json
+      - name: Fail visibly when a check failed
+        if: steps.release.outputs.failed == 'true' || steps.reproduce.outputs.failed == 'true'
+        run: |
+          echo "::error::A monthly check failed; the published data was not changed. See the job summary and ops-alert issues."
+          exit 1
+
+  keepalive:
+    needs: check
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Keep scheduled workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/keepalive.sh

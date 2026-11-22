@@ -1,0 +1,11 @@
+[
+ {
+  "date": "2026-09-03",
+  "version": "v16",
+  "sha256": "9055455c4adacd1ad9e78f1a7f3ac0768bdf26992e7651c0602a43ca7bdd4506",
+  "countries": 179,
+  "observations": 19215,
+  "years": [1900, 2025],
+  "note": "First release of Democracys Score v1.0 beta, built from V-Dem v16 (the dataset democracys.org serves)."
+ }
+]

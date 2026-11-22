@@ -1,0 +1,4 @@
+{"version": "v99", "label": "V-Dem Country-Year Core v99", "published": "2027-03", "publishedLong": "March 2027",
+ "sourceUrl": "https://example.org/V-Dem-CY-Core-v99_csv.zip", "sha256": "0000", "doi": "https://doi.org/10.23696/example",
+ "csvName": "vdem-mini.csv", "generated": "2027-03-20", "shortAttribution": "Coppedge et al. (2027), V-Dem Country-Year Dataset v99, Varieties of Democracy Project.",
+ "citation": "Coppedge et al. 2027. Example."}

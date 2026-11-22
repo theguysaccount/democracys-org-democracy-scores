@@ -1,0 +1,8 @@
+original/
+dist/
+build/
+refresh-report.json
+__pycache__/
+*.pyc
+.DS_Store
+.env

@@ -1,0 +1,86 @@
+# Build the static companion and publish it to GitHub Pages, check the live copy, tell IndexNow about the indexable
+# pages. Runs on pushes that change the data or the build, and when monthly.yml commits new checks or a new V-Dem
+# release. Fails safe: tests and a local end-to-end run must pass before deploying; the last good deploy stays live.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["public/data/**", "release/**", "data/**", "site/**", "scripts/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
+  SITE_REPO: ${{ github.repository }}
+  LIVE_URL: ${{ vars.LIVE_URL || 'https://democracys.org' }}
+  COUNTRY_PAGES_INDEXABLE: ${{ vars.COUNTRY_PAGES_INDEXABLE || 'false' }}
+  GOATCOUNTER_URL: ${{ vars.GOATCOUNTER_URL }}
+  SUPPORT_URL: ${{ vars.SUPPORT_URL }}
+  SUPPORT_LABEL: ${{ vars.SUPPORT_LABEL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tests -t .
+      - name: Build
+        run: python site/build.py
+      - name: Drive the built site in headless Chrome
+        run: scripts/e2e.sh
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: urls
+          path: build/urls.txt
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.second.outputs.page_url || steps.first.outputs.page_url }}
+    steps:
+      - id: first
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - id: second
+        if: steps.first.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+
+  after-deploy:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: urls
+      - name: Check the live site in headless Chrome
+        run: |
+          for attempt in 1 2 3 4; do
+            scripts/e2e.sh "$SITE_URL/" && exit 0
+            sleep 45
+          done
+          exit 1
+      - name: Tell search engines about the indexable pages (IndexNow)
+        run: python3 scripts/indexnow.py urls.txt "$SITE_URL"
