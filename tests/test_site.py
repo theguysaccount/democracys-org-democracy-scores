@@ -68,6 +68,18 @@ class Site(unittest.TestCase):
             lines = self.read("data/countries/%s.csv" % c["slug"]).strip().split("\n")
             self.assertEqual(len(lines), len(c["history"]) + 1)
 
+    def test_vital_and_dataset_jsonld_link_to_live_site(self):
+        home = self.read("index.html")
+        self.assertIn('<script src="https://rsio.org/vital.js" defer></script>', home)
+        match = re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S)
+        self.assertIsNotNone(match)
+        schemas = json.loads(match.group(1))
+        dataset = next(s for s in schemas if s.get("@type") == "Dataset")
+        self.assertIn(LIVE + "/", dataset["sameAs"])
+        self.assertEqual(dataset["license"], "https://creativecommons.org/licenses/by-sa/4.0/")
+        embed = self.read("embed/%s/index.html" % self.data["countries"][0]["slug"])
+        self.assertNotIn("vital.js", embed)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -103,10 +103,60 @@ def attribution(release, root):
                e(release["doi"].replace("https://", "")), root))
 
 
-def page(cfg, release, rel, title, desc, body, depth, index=True, canonical=None, scripts=(), og="og.png"):
+def jsonld_script(obj):
+    if not obj:
+        return ""
+    raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return '<script type="application/ld+json">%s</script>\n' % raw
+
+
+def dataset_schema(cfg, release, data, page_url):
+    meta = data["meta"]
+    y0, y1 = meta["observationYears"][0], meta["observationYears"][1]
+    return [
+        {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Democracys.org Open Data",
+            "url": cfg.url + "/",
+            "isPartOf": {"@type": "WebSite", "name": "Democracys.org", "url": cfg.live + "/"},
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "Dataset",
+            "name": "Democracys Score Open Dataset (%d-%d)" % (y0, y1),
+            "description": "Free, reproducible democracy scores for %d countries and territories (%d-%d, %s country-years) transformed from %s, licensed CC BY-SA 4.0."
+            % (meta["countryCount"], y0, y1, "{:,}".format(meta["observationCount"]), release["label"]),
+            "url": page_url,
+            "sameAs": [cfg.live + "/", cfg.repo_url],
+            "license": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "isAccessibleForFree": True,
+            "temporalCoverage": "%d/%d" % (y0, y1),
+            "spatialCoverage": "%d countries and territories" % meta["countryCount"],
+            "version": meta["methodVersion"],
+            "creator": {"@type": "Organization", "name": "Democracys.org", "url": cfg.live + "/"},
+            "isBasedOn": {"@type": "Dataset", "name": release["label"], "identifier": release["doi"], "url": release["doi"]},
+            "distribution": [
+                {
+                    "@type": "DataDownload",
+                    "encodingFormat": "text/csv",
+                    "contentUrl": cfg.url + "/data/democracys-score-v1.csv",
+                },
+                {
+                    "@type": "DataDownload",
+                    "encodingFormat": "application/json",
+                    "contentUrl": cfg.url + "/data/democracys-score-v1.json",
+                },
+            ],
+        },
+    ]
+
+
+def page(cfg, release, rel, title, desc, body, depth, index=True, canonical=None, scripts=(), og="og.png", jsonld=None):
     root = "../" * depth
     robots = "" if index else '<meta name="robots" content="noindex">\n'
     gc = ('<script data-goatcounter="%s" async src="https://gc.zgo.at/count.js"></script>\n' % e(cfg.goatcounter)) if cfg.goatcounter else ""
+    ld = jsonld_script(jsonld)
     canon = canonical or (cfg.url + "/" + rel)
     support = ('<p><a class="support" href="%s" rel="noopener">%s</a></p>' % (e(cfg.support_url), e(cfg.support_label))) if cfg.support_url else ""
     doc = """<!doctype html>
@@ -126,6 +176,7 @@ def page(cfg, release, rel, title, desc, body, depth, index=True, canonical=None
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{root}assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="{root}assets/style.css">
+{ld}<script src="https://rsio.org/vital.js" defer></script>
 {gc}</head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -144,7 +195,7 @@ a monthly watch for new V-Dem releases. Scores describe political systems in a g
 {scripts}</body>
 </html>
 """.format(title=e(title), desc=e(desc), robots=robots, canon=e(canon), self_url=e(cfg.url + "/" + rel),
-           og=e(cfg.url + "/" + og), root=root, gc=gc, body=body, live=e(cfg.live),
+           og=e(cfg.url + "/" + og), root=root, ld=ld, gc=gc, body=body, live=e(cfg.live),
            attribution=attribution(release, root), repo_url=e(cfg.repo_url), built=e(long_date(cfg.built)),
            support=support, scripts="".join('<script type="module" src="%sassets/%s"></script>\n' % (root, s) for s in scripts))
     return doc
@@ -283,7 +334,8 @@ index values across dataset versions, so every release replaces the whole series
     return page(cfg, release, "data/", "Democracy score data download: CSV and JSON, %d countries, %d to %d" % (
         meta["countryCount"], meta["observationYears"][0], meta["observationYears"][1]),
         "Download the Democracys Score dataset (CC BY-SA 4.0) built from V-Dem: every country-year, the five tests and the derived range.",
-        body, 1, index=cfg.country_indexable, canonical=None if cfg.country_indexable else cfg.live + "/data")
+        body, 1, index=cfg.country_indexable, canonical=None if cfg.country_indexable else cfg.live + "/data",
+        jsonld=dataset_schema(cfg, release, data, cfg.url + "/data/"))
 
 
 def reproducibility_page(cfg, release, repro, watch):
@@ -325,7 +377,14 @@ rebuilt from it (V-Dem advises against comparing values across versions). Last l
             wchecked=e(long_date((watch or {}).get("checked"))), wnote=e((watch or {}).get("note", "not run yet")))
     return page(cfg, release, "reproducibility/", "Reproducible democracy scores: rebuilt monthly from V-Dem's official data",
                 "Every Democracys Score value is rebuilt monthly from V-Dem's checksum-verified file and compared with the published data.",
-                body, 1, index=True)
+                body, 1, index=True, jsonld={
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Reproducible democracy scores: monthly V-Dem rebuild check",
+                    "url": cfg.url + "/reproducibility/",
+                    "isPartOf": {"@type": "WebSite", "name": "Democracys.org Open Data", "url": cfg.url + "/"},
+                    "about": {"@type": "Dataset", "name": "Democracys Score Open Dataset", "url": cfg.url + "/", "sameAs": cfg.live + "/"},
+                })
 
 
 def embed_docs(cfg, release, data):
@@ -343,7 +402,14 @@ It carries the V-Dem attribution and the CC BY-SA 4.0 licence, as the source's t
 <h2>All {n} countries</h2><ul class="cols">{opts}</ul>""".format(code=e(code), slug=e(example["slug"]), n=len(data["countries"]), opts=opts)
     return page(cfg, release, "embed/", "Embed a democracy score chart for any country (free, CC BY-SA)",
                 "Free embeddable charts of the Democracys Score for %d countries since 1900, with V-Dem attribution built in." % len(data["countries"]),
-                body, 1, index=True)
+                body, 1, index=True, jsonld={
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Embed a democracy score chart for any country",
+                    "url": cfg.url + "/embed/",
+                    "isPartOf": {"@type": "WebSite", "name": "Democracys.org Open Data", "url": cfg.url + "/"},
+                    "about": {"@type": "Dataset", "name": "Democracys Score Open Dataset", "url": cfg.url + "/", "sameAs": cfg.live + "/"},
+                })
 
 
 def home_page(cfg, release, data, repro, watch):
@@ -377,9 +443,10 @@ peer reviewed.</p></section>""".format(
         rchecked=(", checked %s" % e(long_date(repro.get("checked")))) if repro else "",
         wnote=e((watch or {}).get("note", "first check pending")), top="".join(row(c) for c in ranked[:10]),
         bottom="".join(row(c) for c in ranked[-10:]), start=len(ranked) - 9)
-    return page(cfg, release, "", "Democracy scores by country, 1900 to %d: open data, charts and embeds" % year,
-                "Free democracy scores for %d countries and territories from 1900 to %d, built from V-Dem: download the data, embed a chart, check the rebuild."
-                % (meta["countryCount"], year), body, 0, index=True)
+    return page(cfg, release, "", "Democracy Scores Open Data (1900–%d): CSV, Embeds & Reproducibility | Democracys.org" % year,
+                "Download free democracy scores for %d countries and territories (1900–%d) from V-Dem (CC BY-SA 4.0): CSV/JSON, embeddable charts, and monthly rebuild checks."
+                % (meta["countryCount"], year), body, 0, index=True,
+                jsonld=dataset_schema(cfg, release, data, cfg.url + "/"))
 
 
 # ---------------------------------------------------------------- files
