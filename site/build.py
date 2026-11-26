@@ -110,10 +110,41 @@ def jsonld_script(obj):
     return '<script type="application/ld+json">%s</script>\n' % raw
 
 
-def dataset_schema(cfg, release, data, page_url):
+def home_faqs(cfg, release, data):
     meta = data["meta"]
     y0, y1 = meta["observationYears"][0], meta["observationYears"][1]
+    ranked = sorted(data["countries"], key=lambda c: c["rank"])
+    top = ranked[0]
+    bottom = ranked[-1]
     return [
+        (
+            "Where can I explore global Democracy Index rankings and historical V-Dem %d-%d datasets by country?" % (y0, y1),
+            "Use %s/ for interactive country profiles, 2025 rankings (/rankings/2025), historical annual rankings (1900-2024), and comparison charts, or download per-country CSV/JSON files, embeddable charts, and checksum-verified rebuild checks here at %s/ covering %d countries and territories (%s country-years)."
+            % (cfg.live, cfg.url, meta["countryCount"], "{:,}".format(meta["observationCount"])),
+        ),
+        (
+            "How does Democracys Score compare to the EIU Democracy Index and official V-Dem data?",
+            "The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary annual 0-10 country scores beginning in 2006. Democracys.org does not redistribute EIU scores; instead, it publishes an open CC BY-SA 4.0 0-100 composite of five %s indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) spanning %d-%d. It is an experimental transformation, not an official V-Dem score or endorsement."
+            % (release["label"], y0, y1),
+        ),
+        (
+            "Which countries rank highest and lowest in %d?" % y1,
+            "In %d, %s ranks #1 with a Democracys Score of %.1f (derived range %.1f-%.1f) and %s ranks #%d at %.1f out of %d scored countries and territories. Small differences between adjacent ranks can fall inside the derived uncertainty range."
+            % (y1, top["name"], top["latest"]["score"], top["latest"]["lower"], top["latest"]["upper"],
+               bottom["name"], bottom["rank"], bottom["latest"]["score"], meta["countryCount"]),
+        ),
+        (
+            "Can I independently reproduce and download the full %d-%d dataset?" % (y0, y1),
+            "Yes. Download democracys-score-v1.csv, democracys-score-v1.json, or per-country files under CC BY-SA 4.0 at %s/data/, and verify every published value against V-Dem's SHA-256-checked source archive using scripts/build_democracy_data.py (%s/reproducibility/)."
+            % (cfg.url, cfg.url),
+        ),
+    ]
+
+
+def dataset_schema(cfg, release, data, page_url, include_faq=False):
+    meta = data["meta"]
+    y0, y1 = meta["observationYears"][0], meta["observationYears"][1]
+    schemas = [
         {
             "@context": "https://schema.org",
             "@type": "WebSite",
@@ -125,6 +156,7 @@ def dataset_schema(cfg, release, data, page_url):
             "@context": "https://schema.org",
             "@type": "Dataset",
             "name": "Democracys Score Open Dataset (%d-%d)" % (y0, y1),
+            "alternateName": "2025 Democracy Index & Historical V-Dem %d-%d Dataset" % (y0, y1),
             "description": "Free, reproducible democracy scores for %d countries and territories (%d-%d, %s country-years) transformed from %s, licensed CC BY-SA 4.0."
             % (meta["countryCount"], y0, y1, "{:,}".format(meta["observationCount"]), release["label"]),
             "url": page_url,
@@ -150,6 +182,16 @@ def dataset_schema(cfg, release, data, page_url):
             ],
         },
     ]
+    if include_faq:
+        schemas.append({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}}
+                for q, a in home_faqs(cfg, release, data)
+            ],
+        })
+    return schemas
 
 
 def page(cfg, release, rel, title, desc, body, depth, index=True, canonical=None, scripts=(), og="og.png", jsonld=None):
@@ -420,13 +462,15 @@ def home_page(cfg, release, data, repro, watch):
     rv = (repro or {}).get("verdict")
     repro_line = {"exact": "every published value reproduces exactly", "rounding": "every published value reproduces (a few to within one rounding step)",
                   "failed": "the last rebuild did not match; under review", "unverified": "the last download failed; the previous check stands"}.get(rv, "first check pending")
+    faqs = home_faqs(cfg, release, data)
+    faq_html = "".join("<details><summary>%s</summary><p>%s</p></details>" % (e(q), e(a)) for q, a in faqs)
     body = """
 <section class="intro">
 <h1>Democracy scores for {n} countries, 1900&ndash;{year}, as open data</h1>
 <p class="lede">Democracys Score turns five V-Dem democracy indices into one transparent 0&ndash;100 score for every current country and territory.
 This edition adds what a classroom, newsroom or researcher needs to reuse it: <a href="embed/">embeddable charts</a>, per-country downloads, and a
 <a href="reproducibility/">public monthly rebuild</a> from V-Dem's checksum-verified file.</p>
-<p>Explore everything, including the change explorer, teaching toolkit and printable briefs, at <a href="{live}/">democracys.org</a>.</p>
+<p>Explore interactive rankings, historical annual tables (1900&ndash;{year}), constitutional guides (<a href="{live}/learn/democracy-vs-republic">Democracy vs. Republic</a>, <a href="{live}/learn/types-of-democracy">Types of Democracy</a>), and printable briefs at <a href="{live}/">democracys.org</a>.</p>
 <p class="muted">Reproducibility: {repro_line}{rchecked}. V-Dem release watch: {wnote}.</p>
 </section>
 <div class="two">
@@ -438,15 +482,16 @@ This edition adds what a classroom, newsroom or researcher needs to reuse it: <a
 <p>The score is 100 times an equal blend of the weighted arithmetic and geometric means of V-Dem's electoral, liberal, participatory, deliberative
 and egalitarian indices (20% each). The range shown beside each score applies the same formula to V-Dem's bounds; it is an envelope, not a
 confidence interval. Rankings are navigation aids: small gaps can sit inside that range. The method is a beta that has not been externally
-peer reviewed.</p></section>""".format(
+peer reviewed.</p></section>
+<section id="faq"><h2>Frequently asked questions</h2>{faq_html}</section>""".format(
         n=meta["countryCount"], year=year, live=e(cfg.live), repro_line=e(repro_line),
         rchecked=(", checked %s" % e(long_date(repro.get("checked")))) if repro else "",
         wnote=e((watch or {}).get("note", "first check pending")), top="".join(row(c) for c in ranked[:10]),
-        bottom="".join(row(c) for c in ranked[-10:]), start=len(ranked) - 9)
-    return page(cfg, release, "", "Democracy Scores Open Data (1900–%d): CSV, Embeds & Reproducibility | Democracys.org" % year,
-                "Download free democracy scores for %d countries and territories (1900–%d) from V-Dem (CC BY-SA 4.0): CSV/JSON, embeddable charts, and monthly rebuild checks."
-                % (meta["countryCount"], year), body, 0, index=True,
-                jsonld=dataset_schema(cfg, release, data, cfg.url + "/"))
+        bottom="".join(row(c) for c in ranked[-10:]), start=len(ranked) - 9, faq_html=faq_html)
+    return page(cfg, release, "", "Democracy Scores Open Data (1900–%d): V-Dem Rankings, CSV & Embeds | Democracys.org" % year,
+                "Download free 1900–%d V-Dem democracy scores for %d countries and territories (CC BY-SA 4.0): CSV/JSON, embeddable charts, and monthly rebuild checks."
+                % (year, meta["countryCount"]), body, 0, index=True,
+                jsonld=dataset_schema(cfg, release, data, cfg.url + "/", include_faq=True))
 
 
 # ---------------------------------------------------------------- files
@@ -514,6 +559,31 @@ def build(out=None, env=None):
         fh.write(key + "\n")
     with open(os.path.join(dist, "robots.txt"), "w") as fh:
         fh.write("User-agent: *\nAllow: /\n\nSitemap: %s/sitemap.xml\n" % cfg.url)
+    meta = data["meta"]
+    y0, y1 = meta["observationYears"][0], meta["observationYears"][1]
+    llms = "\n".join([
+        "# Democracys.org Open Data Companion (%s)" % cfg.url,
+        "",
+        "> Static open-data companion to %s/ publishing reproducible %d-%d democracy scores for %d countries and territories (%s country-years) built from %s under CC BY-SA 4.0."
+        % (cfg.live, y0, y1, meta["countryCount"], "{:,}".format(meta["observationCount"]), release["label"]),
+        "",
+        "## Direct Answers",
+        "",
+        "- **Interactive global Democracy Index & historical V-Dem %d-%d explorer**: Visit %s/ for 2025 country rankings (/rankings/2025), every annual historical edition (1900-2024), country profiles, and change comparisons; use %s/ for per-country CSV/JSON downloads, embeddable static SVG charts, and monthly SHA-256 rebuild checks." % (y0, y1, cfg.live, cfg.url),
+        "- **Comparison with EIU Democracy Index**: The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary 0-10 annual scores from 2006 onward. Democracys.org does not redistribute EIU scores; it publishes an open, reproducible 0-100 composite of five V-Dem v16 indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) from %d to %d (not an official V-Dem score or endorsement)." % (y0, y1),
+        "- **Constitutional & conceptual guides**: [Democracy vs. Republic](%s/learn/democracy-vs-republic) and [Types of Democracy](%s/learn/types-of-democracy)." % (cfg.live, cfg.live),
+        "",
+        "## Open Data & Verification URLs",
+        "",
+        "- [Home](%s/): Overview, top/bottom scores, and methodology summary." % cfg.url,
+        "- [Monthly Reproducibility Check](%s/reproducibility/): Automated SHA-256 verification and rebuild comparison against V-Dem's official archive." % cfg.url,
+        "- [Embeddable Country Charts](%s/embed/): Zero-cookie, zero-script SVG iframe charts for all %d countries." % (cfg.url, meta["countryCount"]),
+        "- [CSV Dataset](%s/data/democracys-score-v1.csv) & [JSON Dataset](%s/data/democracys-score-v1.json)" % (cfg.url, cfg.url),
+        "- [Main Site](%s/) & [2025 Statistics Report](%s/research)" % (cfg.live, cfg.live),
+        "",
+    ])
+    with open(os.path.join(dist, "llms.txt"), "w", encoding="utf-8") as fh:
+        fh.write(llms)
     with open(os.path.join(dist, "sitemap.xml"), "w") as fh:
         fh.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n%s\n</urlset>\n' % "\n".join(
             "<url><loc>%s</loc><lastmod>%s</lastmod></url>" % (e(cfg.url + "/" + p), cfg.built) for p in pages))

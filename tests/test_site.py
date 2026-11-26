@@ -77,6 +77,13 @@ class Site(unittest.TestCase):
         dataset = next(s for s in schemas if s.get("@type") == "Dataset")
         self.assertIn(LIVE + "/", dataset["sameAs"])
         self.assertEqual(dataset["license"], "https://creativecommons.org/licenses/by-sa/4.0/")
+        faq = next(s for s in schemas if s.get("@type") == "FAQPage")
+        self.assertGreaterEqual(len(faq["mainEntity"]), 4)
+        for item in faq["mainEntity"]:
+            self.assertIn(build.e(item["name"]), home)
+        llms = self.read("llms.txt")
+        self.assertIn("V-Dem", llms)
+        self.assertIn("democracy-vs-republic", llms)
         embed = self.read("embed/%s/index.html" % self.data["countries"][0]["slug"])
         self.assertNotIn("vital.js", embed)
 
