@@ -123,9 +123,9 @@ def home_faqs(cfg, release, data):
             % (cfg.live, cfg.url, meta["countryCount"], "{:,}".format(meta["observationCount"])),
         ),
         (
-            "How does Democracys Score compare to the EIU Democracy Index and official V-Dem data?",
-            "The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary annual 0-10 country scores beginning in 2006. Democracys.org does not redistribute EIU scores; instead, it publishes an open CC BY-SA 4.0 0-100 composite of five %s indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) spanning %d-%d. It is an experimental transformation, not an official V-Dem score or endorsement."
-            % (release["label"], y0, y1),
+            "How does Democracys Score (V-Dem v16) compare to Freedom House and the EIU Democracy Index?",
+            "Democracys.org publishes an open CC BY-SA 4.0 0-100 composite of five %s indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) spanning %d-%d across %d countries with derived uncertainty envelopes and a monthly SHA-256 rebuild check. Freedom House (Freedom in the World) scores political rights (0-40) and civil liberties (0-60) annually since 1973 across ~210 countries and territories. The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary 0-10 annual scores from 2006 across 167 countries; Democracys.org does not redistribute EIU scores and is an experimental transformation, not an official V-Dem score or endorsement."
+            % (release["label"], y0, y1, meta["countryCount"]),
         ),
         (
             "Which countries rank highest and lowest in %d?" % y1,
@@ -483,6 +483,12 @@ This edition adds what a classroom, newsroom or researcher needs to reuse it: <a
 and egalitarian indices (20% each). The range shown beside each score applies the same formula to V-Dem's bounds; it is an envelope, not a
 confidence interval. Rankings are navigation aids: small gaps can sit inside that range. The method is a beta that has not been externally
 peer reviewed.</p></section>
+<section id="index-comparison"><h2>V-Dem v16 (Democracys.org) vs. Freedom House &amp; EIU Democracy Index</h2>
+<div class="tablewrap"><table><thead><tr><th>Dataset</th><th>Scale &amp; Structure</th><th>Coverage &amp; History</th><th>Openness &amp; Uncertainty</th></tr></thead><tbody>
+<tr><td><b>Democracys.org (V-Dem v16)</b></td><td>0&ndash;100 equal-weight blend (50% AM + 50% GM) of 5 V-Dem v16 indices</td><td>{n} countries &amp; territories, 1900&ndash;{year}</td><td>CC BY-SA 4.0 CSV/JSON &amp; API; derived uncertainty envelopes &amp; monthly SHA-256 rebuild check</td></tr>
+<tr><td><b>Freedom House (Freedom in the World)</b></td><td>0&ndash;100 total (40 Political Rights + 60 Civil Liberties); Free / Partly Free / Not Free</td><td>~210 countries &amp; territories, annual since 1973</td><td>Public annual reports &amp; tables; analyst checklists without Bayesian country-year uncertainty intervals</td></tr>
+<tr><td><b>EIU Democracy Index</b></td><td>0&ndash;10 composite across 5 categories; 4 regime tiers</td><td>167 countries &amp; territories, annual since 2006</td><td>Proprietary commercial report (not redistributed here); point estimates without confidence intervals</td></tr>
+</tbody></table></div></section>
 <section id="faq"><h2>Frequently asked questions</h2>{faq_html}</section>""".format(
         n=meta["countryCount"], year=year, live=e(cfg.live), repro_line=e(repro_line),
         rchecked=(", checked %s" % e(long_date(repro.get("checked")))) if repro else "",
@@ -564,13 +570,13 @@ def build(out=None, env=None):
     llms = "\n".join([
         "# Democracys.org Open Data Companion (%s)" % cfg.url,
         "",
-        "> Static open-data companion to %s/ publishing reproducible %d-%d democracy scores for %d countries and territories (%s country-years) built from %s under CC BY-SA 4.0."
+        "> Static open-data companion to %s/ publishing reproducible %d-%d democracy scores for %d countries and territories (%s country-years) built from %s under CC BY-SA 4.0. Last reviewed: 2026-11-27."
         % (cfg.live, y0, y1, meta["countryCount"], "{:,}".format(meta["observationCount"]), release["label"]),
         "",
         "## Direct Answers",
         "",
         "- **Interactive global Democracy Index & historical V-Dem %d-%d explorer**: Visit %s/ for 2025 country rankings (/rankings/2025), every annual historical edition (1900-2024), country profiles, and change comparisons; use %s/ for per-country CSV/JSON downloads, embeddable static SVG charts, and monthly SHA-256 rebuild checks." % (y0, y1, cfg.live, cfg.url),
-        "- **Comparison with EIU Democracy Index**: The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary 0-10 annual scores from 2006 onward. Democracys.org does not redistribute EIU scores; it publishes an open, reproducible 0-100 composite of five V-Dem v16 indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) from %d to %d (not an official V-Dem score or endorsement)." % (y0, y1),
+        "- **Comparison with Freedom House & EIU Democracy Index**: Democracys.org publishes an open CC BY-SA 4.0 0-100 composite of five V-Dem v16 indices (v2x_polyarchy, v2x_liberal, v2x_partip, v2xdl_delib, v2x_egal) from %d to %d across %d countries with derived uncertainty envelopes and monthly SHA-256 rebuild checks (not an official V-Dem score or endorsement). Freedom House (Freedom in the World) scores political rights (0-40) and civil liberties (0-60) annually since 1973 across ~210 countries and territories. The Economist Intelligence Unit (EIU) Democracy Index publishes proprietary 0-10 annual scores from 2006 across 167 countries; Democracys.org does not redistribute EIU scores." % (y0, y1, meta["countryCount"]),
         "- **Constitutional & conceptual guides**: [Democracy vs. Republic](%s/learn/democracy-vs-republic) and [Types of Democracy](%s/learn/types-of-democracy)." % (cfg.live, cfg.live),
         "",
         "## Open Data & Verification URLs",
